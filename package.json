@@ -1,0 +1,55 @@
+{
+  "name": "babel-plugin-jsx-adopt",
+  "version": "0.1.0",
+  "description": "",
+  "main": "lib",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Andarist/babel-plugin-jsx-adopt.git"
+  },
+  "keywords": [
+    "babel",
+    "plugin",
+    "jsx",
+    "render",
+    "context"
+  ],
+  "author": "Mateusz Burzyński <mateuszburzynski@gmail.com> (https://github.com/Andarist)",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/Andarist/babel-plugin-jsx-adopt/issues"
+  },
+  "homepage": "https://github.com/Andarist/babel-plugin-jsx-adopt#readme",
+  "dependencies": {
+    "@babel/plugin-syntax-jsx": "7.0.0-beta.42"
+  },
+  "peerDependencies": {
+    "@babel/core": "^7.0.0-beta"
+  },
+  "devDependencies": {
+    "@babel/cli": "7.0.0-beta.42",
+    "@babel/helper-plugin-test-runner": "7.0.0-beta.42",
+    "@babel/preset-env": "7.0.0-beta.42",
+    "babel-core": "^7.0.0-0",
+    "babel-jest": "^22.4.1",
+    "husky": "^0.14.3",
+    "jest": "^22.4.2",
+    "lint-staged": "^7.0.0",
+    "prettier": "^1.11.1"
+  },
+  "scripts": {
+    "build": "babel src --out-dir lib",
+    "self-link": "npm link && npm link $npm_package_name",
+    "_pretest": "if [ ! -d ./node_modules/$npm_package_name ]; then npm run self-link; else npm run build; fi",
+    "pretest": "npm run build",
+    "test": "npm run test-only",
+    "test-only": "jest",
+    "precommit": "lint-staged",
+    "prepare": "npm run build",
+    "prepublish": "test $(npm -v | tr . '\\n' | head -n 1) -ge '4' || exit 1",
+    "prerelease": "npm run prepare && npm test",
+    "release:patch": "npm run prerelease && npm version patch && npm publish && git push --follow-tags",
+    "release:minor": "npm run prerelease && npm version minor && npm publish && git push --follow-tags",
+    "release:major": "npm run prerelease && npm version major && npm publish && git push --follow-tags"
+  }
+}
