@@ -115,7 +115,8 @@ export default ({ types: t, template, version }) => {
 
   const isAdoptingCall = path => path.get('callee.name').node === 'adopt' && path.get('arguments.0').isJSXElement()
 
-  const convertToGenerator = (file, fnPath) => {
+  const convertFunctionParentToGenerator = (file, path) => {
+    const fnPath = path.findParent(p => p.isFunction())
     const id = fnPath.scope.generateUidIdentifier('adopter')
     const bodyPath = fnPath.get('body')
     const gen = t.functionDeclaration(id, [], bodyPath.node, true)
@@ -155,14 +156,14 @@ export default ({ types: t, template, version }) => {
         const stmtKey = stmt.key
 
         if (!stmt.parentPath.isBlockStatement() || !stmt.parentPath.parentPath.isFunction()) {
-          convertToGenerator(file, path.findParent(p => p.isFunction()))
+          convertFunctionParentToGenerator(file, path)
           return
         }
 
         const { success, nodes, index, id } = tryUnnesting(path)
 
         if (success === false) {
-          convertToGenerator(file, path.findParent(p => p.isFunction()))
+          convertFunctionParentToGenerator(file, path)
           return
         }
 
