@@ -1,8 +1,8 @@
-const ThemeContext = React.createContext('light');
+const ThemeContext = React.createContext('light')
 
 class Title extends React.Component {
   render() {
-    const theme = adopt(<ThemeContext.Consumer />);
+    const theme = adopt(<ThemeContext.Consumer />)
     return (
       <h1 style={{color: theme === 'light' ? '#000' : '#fff'}}>
         {this.props.children}

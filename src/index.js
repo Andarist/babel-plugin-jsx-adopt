@@ -1,8 +1,33 @@
 import jsx from '@babel/plugin-syntax-jsx'
 
 const last = arr => (arr.length > 0 ? arr[arr.length - 1] : undefined)
+const memoize = fn => {
+  let cached
+  return (...args) => {
+    if (cached) {
+      return cached
+    }
 
-export default ({ types: t }) => {
+    return (cached = fn(...args))
+  }
+}
+
+export default ({ types: t, template }) => {
+  const addAdoptChildren = memoize(file => {
+    const id = file.scope.generateUidIdentifier('adoptChildren')
+    const helper = template(`
+      function ID(it, adopted) {
+        const { value: element, done } = it.next(adopted)
+        if (done) return element
+        element.props.children = adopted => ID(it, adopted)
+        return element
+      }
+    `)({ ID: id })
+    const [inserted] = file.path.unshiftContainer('body', [helper])
+    file.scope.registerDeclaration(inserted)
+    return id
+  })
+
   const tryUnnesting = (
     { parentPath, node, key, scope },
     state = { success: true, nodes: [node], index: 0, id: null },
@@ -80,17 +105,20 @@ export default ({ types: t }) => {
 
   const isAdoptingCall = path => path.get('callee.name').node === 'adopt' && path.get('arguments.0').isJSXElement()
 
-  const convertToGenerator = fnPath => {
-    debugger
+  const convertToGenerator = (file, fnPath) => {
     const id = fnPath.scope.generateUidIdentifier('adopter')
     const bodyPath = fnPath.get('body')
     const gen = t.functionDeclaration(id, [], bodyPath.node, true)
 
-    bodyPath.replaceWith(t.blockStatement([gen, t.returnStatement(id)]))
+    bodyPath.replaceWith(
+      t.blockStatement([
+        gen,
+        t.returnStatement(t.callExpression(t.cloneNode(addAdoptChildren(file)), [t.callExpression(id, [])])),
+      ]),
+    )
 
-    fnPath.scope.push({ id })
-
-    const genPath = bodyPath.get('body.1')
+    const genPath = bodyPath.get('body.0')
+    fnPath.scope.registerDeclaration(genPath)
     genPath.unwrapFunctionEnvironment()
 
     genPath.traverse({
@@ -108,7 +136,7 @@ export default ({ types: t }) => {
   return {
     inherits: jsx,
     visitor: {
-      CallExpression(path) {
+      CallExpression(path, { file }) {
         if (!isAdoptingCall(path)) {
           return
         }
@@ -117,14 +145,14 @@ export default ({ types: t }) => {
         const stmtKey = stmt.key
 
         if (!stmt.parentPath.isBlockStatement() || !stmt.parentPath.parentPath.isFunction()) {
-          convertToGenerator(path.findParent(p => p.isFunction() || p.isClassMethod()))
+          convertToGenerator(file, path.findParent(p => p.isFunction()))
           return
         }
 
         const { success, nodes, index, id } = tryUnnesting(path)
 
         if (success === false) {
-          convertToGenerator(path.findParent(p => p.isFunction() || p.isClassMethod()))
+          convertToGenerator(file, path.findParent(p => p.isFunction()))
           return
         }
 
