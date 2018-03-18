@@ -1,4 +1,7 @@
+import semver from 'semver'
 import jsx from '@babel/plugin-syntax-jsx'
+import jsx6 from 'babel-plugin-syntax-jsx'
+import unwrapFunctionEnvironment from './unwrapFunctionEnvironment'
 
 const last = arr => (arr.length > 0 ? arr[arr.length - 1] : undefined)
 const memoize = fn => {
@@ -12,7 +15,14 @@ const memoize = fn => {
   }
 }
 
-export default ({ types: t, template }) => {
+export default ({ types: t, template, version }) => {
+  const babel6 = semver.satisfies(version, '^6.0.0')
+
+  const cloneNode = typeof t.cloneNode === 'function' ? t.cloneNode : t.cloneDeep
+  const jsxElement = typeof t.jsxElement === 'function' ? t.jsxElement : t.jSXElement
+  const jsxExpressionContainer =
+    typeof t.jsxExpressionContainer === 'function' ? t.jsxExpressionContainer : t.jSXExpressionContainer
+
   const addAdoptChildren = memoize(file => {
     const id = file.scope.generateUidIdentifier('adoptChildren')
     const helper = template(`
@@ -93,12 +103,12 @@ export default ({ types: t, template }) => {
         REST
       }}</TAG>
     */
-    const openingTag = t.cloneNode(TAG)
+    const openingTag = cloneNode(TAG)
     openingTag.selfClosing = false
-    const closingTag = t.cloneNode(TAG)
+    const closingTag = cloneNode(TAG)
     closingTag.type = 'JSXClosingElement'
-    return t.jsxElement(openingTag, closingTag, [
-      t.jsxExpressionContainer(t.arrowFunctionExpression([ADOPTED], t.blockStatement(REST))),
+    return jsxElement(openingTag, closingTag, [
+      jsxExpressionContainer(t.arrowFunctionExpression([ADOPTED], t.blockStatement(REST))),
     ])
   }
 
@@ -112,13 +122,13 @@ export default ({ types: t, template }) => {
     bodyPath.replaceWith(
       t.blockStatement([
         gen,
-        t.returnStatement(t.callExpression(t.cloneNode(addAdoptChildren(file)), [t.callExpression(id, [])])),
+        t.returnStatement(t.callExpression(cloneNode(addAdoptChildren(file)), [t.callExpression(id, [])])),
       ]),
     )
 
     const genPath = bodyPath.get('body.0')
     fnPath.scope.registerDeclaration(genPath)
-    genPath.unwrapFunctionEnvironment()
+    unwrapFunctionEnvironment(t, genPath)
 
     genPath.traverse({
       Function: path => path.skip(),
@@ -133,7 +143,7 @@ export default ({ types: t, template }) => {
   }
 
   return {
-    inherits: jsx,
+    inherits: babel6 ? jsx6 : jsx,
     visitor: {
       CallExpression(path, { file }) {
         if (!isAdoptingCall(path)) {
