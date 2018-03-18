@@ -78,35 +78,55 @@ export default ({ types: t }) => {
     ])
   }
 
-  const getId = stmt => {
-    if (stmt.isExpressionStatement()) {
-      return stmt.get('expression.left.name').node
-    }
+  const isAdoptingCall = path => path.get('callee.name').node === 'adopt' && path.get('arguments.0').isJSXElement()
+
+  const convertToGenerator = fnPath => {
+    debugger
+    const id = fnPath.scope.generateUidIdentifier('adopter')
+    const bodyPath = fnPath.get('body')
+    const gen = t.functionDeclaration(id, [], bodyPath.node, true)
+
+    bodyPath.replaceWith(t.blockStatement([gen, t.returnStatement(id)]))
+
+    fnPath.scope.push({ id })
+
+    const genPath = bodyPath.get('body.1')
+    genPath.unwrapFunctionEnvironment()
+
+    genPath.traverse({
+      Function: path => path.skip(),
+      CallExpression(path) {
+        if (!isAdoptingCall(path)) {
+          return
+        }
+
+        path.replaceWith(t.yieldExpression(path.get('arguments.0').node))
+      },
+    })
   }
 
   return {
     inherits: jsx,
     visitor: {
       CallExpression(path) {
-        if (path.get('callee.name').node !== 'adopt') {
+        if (!isAdoptingCall(path)) {
           return
         }
 
-        const consumer = path.get('arguments.0')
+        const stmt = path.findParent(p => p.isStatement())
+        const stmtKey = stmt.key
 
-        if (!consumer.isJSXElement()) {
+        if (!stmt.parentPath.isBlockStatement() || !stmt.parentPath.parentPath.isFunction()) {
+          convertToGenerator(path.findParent(p => p.isFunction() || p.isClassMethod()))
           return
         }
 
         const { success, nodes, index, id } = tryUnnesting(path)
 
         if (success === false) {
-          // generator logic
+          convertToGenerator(path.findParent(p => p.isFunction() || p.isClassMethod()))
           return
         }
-
-        const stmt = path.findParent(p => p.isStatement())
-        const stmtKey = stmt.key
 
         if (nodes.length > 1) {
           stmt.replaceWithMultiple(nodes.map(node => (t.isStatement(node) ? node : t.expressionStatement(node))))
@@ -118,7 +138,7 @@ export default ({ types: t }) => {
         updatedStmt.replaceWith(
           t.returnStatement(
             buildAdopted({
-              TAG: consumer.get('openingElement').node,
+              TAG: path.get('arguments.0.openingElement').node,
               ADOPTED: id,
               REST: nextSiblings.map(p => p.node),
             }),
