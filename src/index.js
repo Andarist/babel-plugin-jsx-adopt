@@ -1,7 +1,6 @@
 import semver from 'semver'
 import jsx from '@babel/plugin-syntax-jsx'
 import jsx6 from 'babel-plugin-syntax-jsx'
-import unwrapFunctionEnvironment from './unwrapFunctionEnvironment'
 
 const last = arr => (arr.length > 0 ? arr[arr.length - 1] : undefined)
 const memoize = fn => {
@@ -22,6 +21,8 @@ export default ({ types: t, template, version }) => {
   const jsxElement = typeof t.jsxElement === 'function' ? t.jsxElement : t.jSXElement
   const jsxExpressionContainer =
     typeof t.jsxExpressionContainer === 'function' ? t.jsxExpressionContainer : t.jSXExpressionContainer
+  const unwrapFunctionEnvironment = path =>
+    typeof path.unwrapFunctionEnvironment === 'function' ? path.unwrapFunctionEnvironment() : (path.node.shadow = true)
 
   const addAdoptChildren = memoize(file => {
     const id = file.scope.generateUidIdentifier('adoptChildren')
@@ -128,7 +129,7 @@ export default ({ types: t, template, version }) => {
 
     const genPath = bodyPath.get('body.0')
     fnPath.scope.registerDeclaration(genPath)
-    unwrapFunctionEnvironment(t, genPath)
+    unwrapFunctionEnvironment(genPath)
 
     genPath.traverse({
       Function: path => path.skip(),
