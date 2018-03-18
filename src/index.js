@@ -3,7 +3,10 @@ import jsx from '@babel/plugin-syntax-jsx'
 const last = arr => (arr.length > 0 ? arr[arr.length - 1] : undefined)
 
 export default ({ types: t }) => {
-  const tryUnnesting = ({ parentPath, node, key }, state = { success: true, nodes: [node], index: 0, id: null }) => {
+  const tryUnnesting = (
+    { parentPath, node, key, scope },
+    state = { success: true, nodes: [node], index: 0, id: null },
+  ) => {
     if (parentPath.isExpressionStatement()) {
       return state
     } else if (parentPath.isVariableDeclarator()) {
@@ -29,10 +32,17 @@ export default ({ types: t }) => {
       return state
     } else if (parentPath.isAssignmentExpression()) {
       const { operator, left } = parentPath.node
+      const id = parentPath.get('left').node
+
       if (state.nodes.length - 1 === state.index) {
-        state.id = parentPath.get('left').node
+        state.id = scope.generateUidIdentifierBasedOnNode(id)
       }
-      state.nodes = [...state.nodes.slice(0, -1), t.assignmentExpression(operator, left, last(state.nodes))]
+
+      state.nodes = [
+        ...state.nodes.slice(0, -1),
+        t.assignmentExpression(operator, left, last(state.nodes)),
+        state.id && t.assignmentExpression('=', id, state.id),
+      ].filter(Boolean)
       return tryUnnesting(parentPath, state)
     } else if (parentPath.isSequenceExpression()) {
       const { expressions } = parentPath.node
