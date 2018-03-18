@@ -172,14 +172,20 @@ export default ({ types: t, template, version }) => {
         }
 
         const updatedStmt = stmt.getSibling(stmtKey + index)
+        const constId = stmt.isVariableDeclaration({ kind: 'const' })
+          ? path.scope.generateUidIdentifierBasedOnNode(id)
+          : null
         const nextSiblings = updatedStmt.getAllNextSiblings()
+        const nextNodes = nextSiblings.map(p => p.node)
 
         updatedStmt.replaceWith(
           t.returnStatement(
             buildAdopted({
               TAG: path.get('arguments.0.openingElement').node,
-              ADOPTED: id,
-              REST: nextSiblings.map(p => p.node),
+              ADOPTED: constId ? constId : id,
+              REST: constId
+                ? [t.variableDeclaration('const', [t.variableDeclarator(id, constId)])].concat(nextNodes)
+                : nextNodes,
             }),
           ),
         )

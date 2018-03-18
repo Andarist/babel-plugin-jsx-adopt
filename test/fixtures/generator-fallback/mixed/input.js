@@ -1,6 +1,6 @@
 class Title extends React.Component {
   render() {
-    const answer = adopt(<Answer />)
+    let answer = adopt(<Answer />)
 
     const numbers = []
     let number
