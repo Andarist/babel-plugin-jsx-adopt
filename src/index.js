@@ -19,8 +19,7 @@ export default ({ types: t, template }) => {
       function ID(it, adopted) {
         const { value: element, done } = it.next(adopted)
         if (done) return element
-        element.props.children = adopted => ID(it, adopted)
-        return element
+        return React.cloneElement(element, null, adopted => ID(it, adopted))
       }
     `)({ ID: id })
     const [inserted] = file.path.unshiftContainer('body', [helper])

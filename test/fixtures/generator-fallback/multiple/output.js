@@ -4,10 +4,7 @@ function _adoptChildren(it, adopted) {
     done
   } = it.next(adopted);
   if (done) return element;
-
-  element.props.children = adopted => _adoptChildren(it, adopted);
-
-  return element;
+  return React.cloneElement(element, null, adopted => _adoptChildren(it, adopted));
 }
 
 class Title extends React.Component {
