@@ -1,6 +1,5 @@
 import jsx from '@babel/plugin-syntax-jsx'
 
-const flatMap = (iteratee, arr) => [].concat(...arr.map(iteratee))
 const last = arr => (arr.length > 0 ? arr[arr.length - 1] : undefined)
 
 export default ({ types: t }) => {
@@ -8,23 +7,26 @@ export default ({ types: t }) => {
     if (parentPath.isExpressionStatement()) {
       return state
     } else if (parentPath.isVariableDeclarator()) {
-      if (state.nodes.length - 1 === state.index) {
-        state.id = parentPath.get('id').node
-      }
-      state.nodes = [...state.nodes.slice(0, -1), t.assignmentExpression(operator, left, last(state.nodes))]
+      const id = parentPath.get('id').node
+      const { key: parentKey, parentPath: declaration } = parentPath
+      const { kind, declarations } = declaration.node
 
-      // const { key } = parentPath
-      // const declaration = parentPath.parentPath
-      // const { kind } = declaration.node
-      // nodes.push(
-      //   declaration
-      //     .get('declarations')
-      //     .map(p => t.variableDeclaration(kind, p.node))
-      // )
-      // return nodes
-      return { success: false }
-    } else if (parentPath.isVariableDeclaration()) {
-      return { success: false }
+      if (state.nodes.length - 1 === state.index) {
+        state.id = id
+      }
+
+      if (parentKey > 0) {
+        state.index++
+      }
+
+      state.nodes = [
+        parentKey > 0 && t.variableDeclaration(kind, declarations.slice(0, parentKey)),
+        ...state.nodes.slice(0, -1),
+        t.variableDeclaration(kind, [t.variableDeclarator(id, last(state.nodes))]),
+        parentKey < declarations.length - 1 && t.variableDeclaration(kind, declarations.slice(parentKey + 1)),
+      ].filter(Boolean)
+
+      return state
     } else if (parentPath.isAssignmentExpression()) {
       const { operator, left } = parentPath.node
       if (state.nodes.length - 1 === state.index) {
@@ -33,8 +35,18 @@ export default ({ types: t }) => {
       state.nodes = [...state.nodes.slice(0, -1), t.assignmentExpression(operator, left, last(state.nodes))]
       return tryUnnesting(parentPath, state)
     } else if (parentPath.isSequenceExpression()) {
-      state.index += key
-      state.nodes = flatMap((p, i) => (i === key ? state.nodes : p.node), parentPath.get('expressions'))
+      const { expressions } = parentPath.node
+
+      if (key > 0) {
+        state.index++
+      }
+
+      state.nodes = [
+        key > 0 && t.sequenceExpression(expressions.slice(0, key)),
+        ...state.nodes,
+        key < expressions.length - 1 && t.sequenceExpression(expressions.slice(key + 1)),
+      ].filter(Boolean)
+
       return tryUnnesting(parentPath, state)
     } else {
       return { success: false }
@@ -87,7 +99,7 @@ export default ({ types: t }) => {
         const stmtKey = stmt.key
 
         if (nodes.length > 1) {
-          stmt.replaceWithMultiple(nodes.map(node => t.expressionStatement(node)))
+          stmt.replaceWithMultiple(nodes.map(node => (t.isStatement(node) ? node : t.expressionStatement(node))))
         }
 
         const updatedStmt = stmt.getSibling(stmtKey + index)
